@@ -1,0 +1,73 @@
+package config
+
+import "os"
+
+var (
+	JwtSecret = []byte(os.Getenv("JWT_SECRET"))
+
+	// Whitelist
+	ValidPaths = []string{
+		"/v1/signup",
+		"/v1/signin",
+	}
+
+	// CORS
+	CORSAllowOrigin = "*"
+
+	// Hifi Scheme
+	HifiScheme = "http"
+
+	// Hifi Web Server
+	Host = "127.0.0.1"
+	Port = []string{"5002", "5006"}
+
+	// Subsonic Scheme
+	SubsonicScheme = "http"
+
+	// Subsonic Server
+	SubsonicHost = "127.0.0.1:4747"
+
+	HostUrl = "https://hifi.401658.xyz"
+
+	// Subsonic Admin Credentials
+	SubsonicAdmin         = "jack"
+	SubsonicAdminPassword = "12345678"
+)
+
+const (
+
+	// HTTP methods
+	MethodGet     = "GET"
+	MethodPost    = "POST"
+	MethodPut     = "PUT"
+	MethodDelete  = "DELETE"
+	MethodPatch   = "PATCH"
+	MethodOptions = "OPTIONS"
+
+	// Content types
+	ContentTypeJSON = "application/json"
+	ContentTypeForm = "application/x-www-form-urlencoded"
+
+	// Cookie
+	Cookies = "Cookie"
+
+	// Common headers
+	HeaderContentType           = "Content-Type"
+	HeaderCacheControl          = "Cache-Control"
+	HeaderConnection            = "Connection"
+	HeaderAllowOrigin           = "Access-Control-Allow-Origin"
+	HeaderAllowMethods          = "Access-Control-Allow-Methods"
+	HeaderAllowHeaders          = "Access-Control-Allow-Headers"
+	HeaderContentSecurityPolicy = "Content-Security-Policy"
+
+	// HTTP State codes
+	StatusOK                  = 200
+	StatusCreated             = 201
+	StatusNoContent           = 204
+	StatusBadRequest          = 400
+	StatusUnauthorized        = 401
+	StatusNotFound            = 404
+	StatusInternalServerError = 500
+	StatusMethodNotAllowed    = 405
+	StatusMultipleChoices     = 300
+)

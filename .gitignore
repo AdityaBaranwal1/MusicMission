@@ -1,0 +1,93 @@
+# Node modules
+node_modules/
+**/node_modules/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+*.env
+
+# Build outputs
+dist/
+build/
+*.egg-info/
+.dist/
+out/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Package manager
+.pnpm-store/
+.pnpm-debug.log*
+
+# Electron
+app-builds/
+release-builds/
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+
+# Backups
+BACKUPS/
+*.backup
+backup_*/
+
+# Music files (if large)
+*.mp3
+*.flac
+*.wav
+*.m4a
+*.ogg
+*.opus
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Coverage
+coverage/
+.nyc_output/
+*.lcov
+
+# Dependency directories
+jspm_packages/
+bower_components/
+
+# Test output
+.pytest_cache/
+.coverage
+
+# SvelteKit
+.svelte-kit/
