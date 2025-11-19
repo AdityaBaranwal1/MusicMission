@@ -12,6 +12,8 @@
 	import { downloadPreferencesStore, type DownloadMode } from '$lib/stores/downloadPreferences';
 	import { userPreferencesStore } from '$lib/stores/userPreferences';
 	import { effectivePerformanceLevel } from '$lib/stores/performance';
+	import { lastfmStore } from '$lib/stores/lastfm';
+	import { authenticate as lastfmAuthenticate } from '$lib/lastfm';
 	import { losslessAPI, type TrackDownloadProgress } from '$lib/api';
 	import { sanitizeForFilename, getExtensionForQuality, buildTrackLinksCsv } from '$lib/downloads';
 	import { formatArtists } from '$lib/utils';
@@ -41,6 +43,10 @@
 	let isCsvExporting = $state(false);
 	let isLegacyQueueDownloading = $state(false);
 	let settingsMenuContainer: HTMLDivElement | null = null;
+	let lastfmUsername = $state('');
+	let lastfmPassword = $state('');
+	let isLastfmAuthenticating = $state(false);
+	let lastfmAuthError = $state<string | null>(null);
 	const downloadMode = $derived($downloadPreferencesStore.mode);
 	const queueActionBusy = $derived(
 		downloadMode === 'zip'
@@ -113,6 +119,8 @@
 
 	const convertAacToMp3 = $derived($userPreferencesStore.convertAacToMp3);
 	const downloadCoversSeperately = $derived($userPreferencesStore.downloadCoversSeperately);
+	const isLastfmAuthenticated = $derived($lastfmStore.isAuthenticated);
+	const lastfmStoredUsername = $derived($lastfmStore.username);
 
 	function selectPlaybackQuality(quality: AudioQuality): void {
 		playerStore.setQuality(quality);
@@ -133,6 +141,35 @@
 
 	function setPerformanceMode(mode: 'medium' | 'low'): void {
 		userPreferencesStore.setPerformanceMode(mode);
+	}
+
+	async function handleLastfmLogin(): Promise<void> {
+		if (!lastfmUsername || !lastfmPassword) {
+			lastfmAuthError = 'Please enter both username and password';
+			return;
+		}
+
+		isLastfmAuthenticating = true;
+		lastfmAuthError = null;
+
+		try {
+			const sessionKey = await lastfmAuthenticate(lastfmUsername, lastfmPassword);
+			lastfmStore.login(sessionKey, lastfmUsername);
+			lastfmPassword = '';
+			lastfmAuthError = null;
+		} catch (error) {
+			console.error('Last.fm authentication failed:', error);
+			lastfmAuthError = error instanceof Error ? error.message : 'Authentication failed';
+		} finally {
+			isLastfmAuthenticating = false;
+		}
+	}
+
+	function handleLastfmLogout(): void {
+		lastfmStore.logout();
+		lastfmUsername = '';
+		lastfmPassword = '';
+		lastfmAuthError = null;
 	}
 
 	const navigationMessage = $derived(() => {
@@ -490,6 +527,65 @@
 								style={`--settings-menu-offset: ${settingsMenuOffset()}px;`}
 							>
 								<div class="settings-grid">
+									<section class="settings-section settings-section--wide">
+										<p class="section-heading">Last.fm Connection</p>
+										{#if isLastfmAuthenticated}
+											<div class="lastfm-authenticated glass-option is-active">
+												<div class="glass-option__content">
+													<span class="glass-option__label">Connected as {lastfmStoredUsername}</span>
+													<span class="glass-option__description">Scrobbling enabled • Personalized charts</span>
+												</div>
+												<button
+													type="button"
+													onclick={handleLastfmLogout}
+													class="lastfm-logout-btn"
+												>
+													Disconnect
+												</button>
+											</div>
+										{:else}
+											<div class="lastfm-login-form">
+												<input
+													type="text"
+													placeholder="Last.fm username"
+													bind:value={lastfmUsername}
+													class="lastfm-input"
+													disabled={isLastfmAuthenticating}
+												/>
+												<input
+													type="password"
+													placeholder="Last.fm password"
+													bind:value={lastfmPassword}
+													class="lastfm-input"
+													disabled={isLastfmAuthenticating}
+													onkeydown={(e) => {
+														if (e.key === 'Enter') {
+															handleLastfmLogin();
+														}
+													}}
+												/>
+												{#if lastfmAuthError}
+													<p class="lastfm-error">{lastfmAuthError}</p>
+												{/if}
+												<button
+													type="button"
+													onclick={handleLastfmLogin}
+													class="lastfm-login-btn"
+													disabled={isLastfmAuthenticating || !lastfmUsername || !lastfmPassword}
+												>
+													{#if isLastfmAuthenticating}
+														<LoaderCircle size={16} class="animate-spin" />
+														<span>Connecting...</span>
+													{:else}
+														<span>Connect Last.fm</span>
+													{/if}
+												</button>
+												<p class="section-footnote" style="margin-top: 0.5rem;">
+													Connect your Last.fm account for scrobbling and personalized recommendations.
+												</p>
+											</div>
+										{/if}
+									</section>
 									<section class="settings-section settings-section--wide">
 										<p class="section-heading">Streaming & Downloads</p>
 										<div class="option-grid">
@@ -1160,6 +1256,103 @@
 		font-size: 0.68rem;
 		color: rgba(203, 213, 225, 0.58);
 		line-height: 1.4;
+	}
+
+	.lastfm-login-form {
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+	}
+
+	.lastfm-input {
+		width: 100%;
+		padding: 0.65rem 0.85rem;
+		border-radius: 10px;
+		border: 1px solid rgba(148, 163, 184, 0.2);
+		background: transparent;
+		backdrop-filter: blur(var(--perf-blur-medium, 28px)) saturate(var(--perf-saturate, 160%));
+		-webkit-backdrop-filter: blur(var(--perf-blur-medium, 28px)) saturate(var(--perf-saturate, 160%));
+		color: inherit;
+		font-size: 0.8rem;
+		transition: border-color 140ms ease, box-shadow 160ms ease;
+	}
+
+	.lastfm-input:focus {
+		outline: none;
+		border-color: var(--bloom-accent, rgba(59, 130, 246, 0.6));
+		box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+	}
+
+	.lastfm-input::placeholder {
+		color: rgba(203, 213, 225, 0.4);
+	}
+
+	.lastfm-input:disabled {
+		opacity: 0.6;
+		cursor: not-allowed;
+	}
+
+	.lastfm-login-btn {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 0.5rem;
+		padding: 0.65rem 1rem;
+		border-radius: 10px;
+		border: 1px solid var(--bloom-accent, rgba(59, 130, 246, 0.6));
+		background: transparent;
+		backdrop-filter: blur(var(--perf-blur-medium, 28px)) saturate(var(--perf-saturate, 160%));
+		-webkit-backdrop-filter: blur(var(--perf-blur-medium, 28px)) saturate(var(--perf-saturate, 160%));
+		color: rgba(191, 219, 254, 0.95);
+		font-size: 0.8rem;
+		font-weight: 600;
+		cursor: pointer;
+		transition: border-color 140ms ease, box-shadow 160ms ease, transform 140ms ease;
+	}
+
+	.lastfm-login-btn:hover:not(:disabled) {
+		transform: translateY(-1px);
+		box-shadow: 0 8px 24px rgba(59, 130, 246, 0.25);
+	}
+
+	.lastfm-login-btn:disabled {
+		opacity: 0.6;
+		cursor: not-allowed;
+		transform: none;
+	}
+
+	.lastfm-error {
+		margin: 0;
+		padding: 0.5rem 0.65rem;
+		border-radius: 8px;
+		background: rgba(239, 68, 68, 0.1);
+		border: 1px solid rgba(239, 68, 68, 0.3);
+		color: rgba(252, 165, 165, 0.95);
+		font-size: 0.72rem;
+	}
+
+	.lastfm-authenticated {
+		position: relative;
+	}
+
+	.lastfm-logout-btn {
+		padding: 0.35rem 0.75rem;
+		border-radius: 8px;
+		border: 1px solid rgba(148, 163, 184, 0.3);
+		background: transparent;
+		backdrop-filter: blur(16px) saturate(140%);
+		-webkit-backdrop-filter: blur(16px) saturate(140%);
+		color: rgba(226, 232, 240, 0.85);
+		font-size: 0.72rem;
+		font-weight: 600;
+		cursor: pointer;
+		transition: border-color 140ms ease, color 140ms ease;
+		flex-shrink: 0;
+	}
+
+	.lastfm-logout-btn:hover {
+		border-color: rgba(239, 68, 68, 0.5);
+		color: rgba(252, 165, 165, 0.95);
 	}
 
 	.app-main {

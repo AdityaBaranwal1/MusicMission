@@ -1,9 +1,12 @@
 <script lang="ts">
-	import SearchInterface from '$lib/components/SearchInterface.svelte';
+	import { onMount } from 'svelte';
+	import LastFmCharts from '$lib/components/LastFmCharts.svelte';
 	import type { Track } from '$lib/types';
 	import { playerStore } from '$lib/stores/player';
 
 	let { data } = $props();
+	// Import SearchInterface directly for faster startup
+	import SearchInterface from '$lib/components/SearchInterface.svelte';
 
 	function handleTrackSelect(track: Track) {
 		playerStore.setQueue([track], 0);
@@ -30,6 +33,9 @@
 		</div>
 		<p class="mx-auto max-w-2xl text-xl text-gray-400">{data.slogan}</p>
 	</div>
+
+	<!-- Last.fm Charts -->
+	<LastFmCharts />
 
 	<!-- Search Interface -->
 	<SearchInterface onTrackSelect={handleTrackSelect} />

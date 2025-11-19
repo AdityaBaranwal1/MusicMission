@@ -1,4 +1,5 @@
 import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
+import staticAdapter from '@sveltejs/adapter-static';
 import vercel from '@sveltejs/adapter-vercel';
 import node from '@sveltejs/adapter-node';
 import cloudflare from '@sveltejs/adapter-cloudflare';
@@ -13,6 +14,17 @@ const config = {
 };
 
 function selectAdapter() {
+	// Tauri desktop app (static build)
+	if (process.env.TAURI_ENV_PLATFORM) {
+		console.log('Using Static adapter (Tauri)');
+		return staticAdapter({
+			pages: 'build',
+			assets: 'build',
+			fallback: 'index.html',
+			precompress: false
+		});
+	}
+
 	// Vercel automatically sets this
 	if (process.env.VERCEL) {
 		console.log('Using Vercel adapter');

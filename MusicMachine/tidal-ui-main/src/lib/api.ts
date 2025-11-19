@@ -1,5 +1,6 @@
 // API service for HIFI API
 import { API_CONFIG, fetchWithCORS, selectApiTargetForRegion } from './config';
+import { smartFetch } from './tauri-http';
 import type { RegionOption } from '$lib/stores/region';
 import { deriveTrackQuality } from '$lib/utils/audioQuality';
 import { parseTidalUrl, type TidalUrlParseResult } from '$lib/utils/urlParser';
@@ -316,10 +317,11 @@ class LosslessAPI {
 	}
 
 	/**
-	 * Fetch wrapper with CORS handling
+	 * Fetch wrapper with smart Tauri/CORS handling
+	 * Uses Tauri's native HTTP client when available, falls back to CORS proxy for web
 	 */
 	private async fetch(url: string, options?: RequestInit): Promise<Response> {
-		return fetchWithCORS(url, options);
+		return smartFetch(url, options);
 	}
 
 	/**

@@ -3,6 +3,8 @@
 	import { get } from 'svelte/store';
 	import { playerStore } from '$lib/stores/player';
 	import { lyricsStore } from '$lib/stores/lyrics';
+	import { lastfmStore } from '$lib/stores/lastfm';
+	import { updateNowPlaying, scrobbleTrack } from '$lib/lastfm';
 	import { losslessAPI, DASH_MANIFEST_UNAVAILABLE_CODE, type TrackDownloadProgress } from '$lib/api';
 	import type { DashManifestResult } from '$lib/api';
 	import { getProxiedUrl } from '$lib/config';
@@ -87,6 +89,12 @@
 	let lastKnownPlaybackState: 'none' | 'paused' | 'playing' = 'none';
 	let isSeeking = false;
 	let seekBarElement = $state<HTMLButtonElement | null>(null);
+
+	// Last.fm scrobbling state
+	let scrobbleTrackId: number | null = null;
+	let scrobbleStartTime: number | null = null;
+	let hasScrobbled = false;
+	let nowPlayingSent = false;
 
 	function getCacheKey(trackId: number, quality: AudioQuality) {
 		return `${trackId}:${quality}`;
@@ -468,6 +476,11 @@
 		playerStore.setLoading(true);
 		bufferedPercent = 0;
 		currentPlaybackQuality = null;
+		
+		// Reset scrobble state for new track
+		resetScrobbleState();
+		scrobbleTrackId = track.id;
+		
 		const requestedQuality = $playerStore.quality;
 		const scheduleSampleRateUpdate = (quality: AudioQuality) => {
 			void updateSampleRateForTrack(track, quality, sequence);
@@ -524,7 +537,88 @@
 			const remaining = ($playerStore.duration ?? 0) - audioElement.currentTime;
 			maybePreloadNextTrack(remaining);
 			updateMediaSessionPositionState();
+			checkScrobbleCondition();
 		}
+	}
+
+	// Last.fm scrobbling logic
+	async function sendNowPlaying(track: Track) {
+		const state = get(lastfmStore);
+		if (!state.isAuthenticated || !state.sessionKey) {
+			return;
+		}
+
+		try {
+			const artist = formatArtists(track.artists);
+			const title = track.title ?? 'Unknown Track';
+			const album = track.album?.title;
+			const duration = track.duration;
+
+			await updateNowPlaying(title, artist, state.sessionKey, album, duration);
+			nowPlayingSent = true;
+			console.log('Last.fm: Now Playing sent:', { artist, title });
+		} catch (error) {
+			console.error('Last.fm: Failed to send Now Playing:', error);
+		}
+	}
+
+	async function sendScrobble(track: Track, timestamp: number) {
+		const state = get(lastfmStore);
+		if (!state.isAuthenticated || !state.sessionKey) {
+			return;
+		}
+
+		try {
+			const artist = formatArtists(track.artists);
+			const title = track.title ?? 'Unknown Track';
+			const album = track.album?.title;
+			const duration = track.duration;
+
+			await scrobbleTrack(title, artist, timestamp, state.sessionKey, album, duration);
+			hasScrobbled = true;
+			console.log('Last.fm: Scrobbled:', { artist, title });
+		} catch (error) {
+			console.error('Last.fm: Failed to scrobble:', error);
+		}
+	}
+
+	function checkScrobbleCondition() {
+		const track = $playerStore.currentTrack;
+		if (!track || !audioElement || !$playerStore.isPlaying) {
+			return;
+		}
+
+		// Track must be the one we're tracking
+		if (scrobbleTrackId !== track.id) {
+			return;
+		}
+
+		// Already scrobbled this track
+		if (hasScrobbled) {
+			return;
+		}
+
+		const duration = track.duration ?? 0;
+		const currentTime = audioElement.currentTime;
+
+		// Track must be longer than 30 seconds
+		if (duration <= 30) {
+			return;
+		}
+
+		// Scrobble after 50% of duration OR 4 minutes (240 seconds), whichever comes first
+		const scrobbleThreshold = Math.min(duration / 2, 240);
+
+		if (currentTime >= scrobbleThreshold && scrobbleStartTime) {
+			sendScrobble(track, scrobbleStartTime);
+		}
+	}
+
+	function resetScrobbleState() {
+		scrobbleTrackId = null;
+		scrobbleStartTime = null;
+		hasScrobbled = false;
+		nowPlayingSent = false;
 	}
 
 	async function fallbackToLosslessAfterDashError(reason: string) {
@@ -615,6 +709,23 @@
 		playerStore.setLoading(false);
 		updateBufferedPercent();
 		updateMediaSessionPositionState();
+	}
+
+	function handlePlay() {
+		const track = $playerStore.currentTrack;
+		if (!track) {
+			return;
+		}
+
+		// Send Now Playing to Last.fm when track starts
+		if (!nowPlayingSent && scrobbleTrackId === track.id) {
+			sendNowPlaying(track);
+		}
+
+		// Set scrobble start timestamp if not already set
+		if (!scrobbleStartTime && scrobbleTrackId === track.id) {
+			scrobbleStartTime = Date.now();
+		}
 	}
 
 	function getPercent(current: number, total: number): number {
@@ -1111,6 +1222,7 @@
 	onloadedmetadata={updateBufferedPercent}
 	onprogress={handleProgress}
 	onerror={handleAudioError}
+	onplay={handlePlay}
 	class="hidden"
 ></audio>
 
